@@ -1,7 +1,18 @@
 /*
     Copyright (C) 2020, Sathira Silva (e17331@eng.pdn.ac.lk).
     
+    This program generates a bar chart showing statistics of words or characters (depending upon the mode which the program is 
+    currently running on) occurred in the given input file(s) containing texts. The chart shows most 10 frequent words (in default, 
+    it can be chainged by giving the relevant command line arguments) with their frequencies in non increasing order. If two words
+    have the same frequency, the first occurred word is shown first.
     
+    Approach:   Since there can be multiple files of huge amounts of words provided as inputs, a both space and time efficient Data
+                Structure is needed. A naive algorithm would be to store the words and there frequencies in an array with there order
+                of occurrence and then sort the array by both frequency and order of occurrence. But it's very inefficient. Therefore,
+                this program uses the Binary Max Heap Data Structure. Most of the operations in heaps are of order O(log(n)) time.
+                The heap is stored using an array so that additional informations of each vertex in the heap do not have to be stored
+                and they can be computed on the fly. An extra priority parameter is added to the heap other than the frequency of a
+                word which is the order of occurrence of the word.
 */
 
 
@@ -10,13 +21,14 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
+#include <time.h>
 
 #define MAXSCREENWIDTH      80
 #define max(a, b) (a > b) ? a : b
 
 
 // Enumerated operating mode: Character mode or Word mode.
-typedef enum ___ {
+typedef enum _ {
     CHARACTER,
     WORD
 } Mode_t;
@@ -46,7 +58,7 @@ void displayUsageMessage()
 
 
 /* Utilities for Array - based Binary Max Heap Data Structure (With the order of occurrence also as a priority value) */
-typedef struct _
+typedef struct __
 {
     char *word;                // String word as a key.
     int frequency, occurredAt; //Priority values.
@@ -127,13 +139,13 @@ void insert(char *word)
     totalWords++;
     for (int i = 0; i < size; i++)
     {
-        if (strcmp(frequencyHeap[i].word, word) == 0)
-        {
-            frequencyHeap[i].frequency++;
-            siftUp(i);
-            return;
-        }
-    }
+         if (strcmp(frequencyHeap[i].word, word) == 0)
+         {
+             frequencyHeap[i].frequency++;
+             siftUp(i);
+             return;
+         }
+     }
     if (size == capacity)
     {
         capacity *= 2;
@@ -158,6 +170,7 @@ word_t extractMax()
 
 int main(int argc, char *argv[])
 {
+    int before = clock();
     frequencyHeap = malloc(capacity * sizeof(word_t));  // Allocate memory for the binary heap.
     int length = 10, maxWordLength = 0, scale = 0;
     bool scaled = false;
@@ -263,5 +276,6 @@ int main(int argc, char *argv[])
     for (int i = 0; i < 80; i++)
         printf("\u2500");
     printf("\n");
+    printf("The solution took %lds to execute\n", (clock() - before) / 1000000);
     return 0;
 }
