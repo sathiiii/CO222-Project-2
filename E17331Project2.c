@@ -15,7 +15,6 @@
                 word which is the order of occurrence of the word.
 */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -23,12 +22,13 @@
 #include <stdbool.h>
 #include <time.h>
 
-#define MAXSCREENWIDTH      80
+#define MAXSCREENWIDTH 80
+#define CHAR_COUNT 36
 #define max(a, b) (a > b) ? a : b
 
-
 // Enumerated operating mode: Character mode or Word mode.
-typedef enum _ {
+typedef enum _
+{
     CHARACTER,
     WORD
 } Mode_t;
@@ -56,11 +56,31 @@ void displayUsageMessage()
     printf("usage: freq [-l length] [-w | -c] [--scaled] filename1 filename2 ..\n");
 }
 
-
-/* Utilities for Array - based Binary Max Heap Data Structure (With the order of occurrence also as a priority value) */
+/* Trie Data Structure */
 typedef struct __
 {
-    char *word;                // String word as a key.
+    bool isLeaf;
+    int frequency, heapId;
+    struct __ *children[CHAR_COUNT];
+} trienode_t;
+
+trienode_t *createNewNode()
+{
+    trienode_t *newNode = (trienode_t *)malloc(sizeof(trienode_t));
+    newNode->isLeaf = false;
+    newNode->frequency = 0;
+    newNode->heapId = -1;
+    for (int i = 0; i < CHAR_COUNT; i++)
+        newNode->children[i] = NULL;
+    return newNode;
+}
+/* End of Trie Data Structure */
+
+/* Utilities for Array - based Binary Max Heap Data Structure (With the order of occurrence also as a priority value) */
+typedef struct ___
+{
+    char *word; // String word as a key.
+    trienode_t *root;
     int frequency, occurredAt; //Priority values.
 } word_t;
 
@@ -82,7 +102,7 @@ void siftUp(int);
 // Sifts down the ith vertex of the binary heap.
 void siftDown(int);
 // Inserts a new vertex to the binary heap.
-void insert(char *);
+void insert(trienode_t **, char *, char *);
 // Extracts the root node of the binary max heap.
 word_t extractMax();
 
@@ -112,6 +132,8 @@ void siftUp(int i)
 {
     while (i > 0 && (frequencyHeap[parent(i)].frequency < frequencyHeap[i].frequency || (frequencyHeap[parent(i)].frequency == frequencyHeap[i].frequency && frequencyHeap[parent(i)].occurredAt > frequencyHeap[i].occurredAt)))
     {
+        frequencyHeap[parent(i)].root->heapId = i;
+        frequencyHeap[i].root->heapId = parent(i);
         swap(&frequencyHeap[parent(i)], &frequencyHeap[i]);
         i = parent(i);
     }
@@ -134,18 +156,15 @@ void siftDown(int i)
     }
 }
 
-void insert(char *word)
+void insertToHeap(char *word, trienode_t **root)
 {
     totalWords++;
-    for (int i = 0; i < size; i++)
+    if ((*root)->heapId != -1)
     {
-         if (strcmp(frequencyHeap[i].word, word) == 0)
-         {
-             frequencyHeap[i].frequency++;
-             siftUp(i);
-             return;
-         }
-     }
+        (frequencyHeap[(*root)->heapId].frequency)++;
+        siftUp((*root)->heapId);
+        return;
+    }
     if (size == capacity)
     {
         capacity *= 2;
@@ -153,9 +172,37 @@ void insert(char *word)
     }
     frequencyHeap[size].word = malloc((strlen(word) + 1) * sizeof(char));
     frequencyHeap[size].word = word;
-    frequencyHeap[size].frequency = 1;
+    frequencyHeap[size].frequency = (*root)->frequency;
+    frequencyHeap[size].root = *root;
+    (*root)->heapId = size;
     frequencyHeap[size].occurredAt = uniqueOccurrences++;
     siftUp(size++);
+}
+
+void insert(trienode_t **root, char *word, char *tempWord)
+{
+    if (*root == NULL)
+        *root = createNewNode();
+    if (*word != '\0')
+    {
+        char c = *word;
+        if (c >= 'a')
+            c -= 'a';
+        else
+            c -= '0' - 26;
+        insert(&((*root)->children[(int)c]), word + 1, tempWord);
+    }
+    else
+    {
+        if ((*root)->isLeaf)
+            ((*root)->frequency)++;
+        else
+        {
+            (*root)->isLeaf = true;
+            (*root)->frequency = 1;
+        }
+        insertToHeap(tempWord, root);
+    }
 }
 
 word_t extractMax()
@@ -167,11 +214,11 @@ word_t extractMax()
 }
 /* End of Utilities for Binary Max Heap Data Structure */
 
-
 int main(int argc, char *argv[])
 {
     int before = clock();
-    frequencyHeap = malloc(capacity * sizeof(word_t));  // Allocate memory for the binary heap.
+    frequencyHeap = (word_t *)malloc(capacity * sizeof(word_t)); // Allocate memory for the binary heap.
+    trienode_t *root = (trienode_t *)malloc(sizeof(trienode_t));
     int length = 10, maxWordLength = 0, scale = 0;
     bool scaled = false;
     Mode_t mode = WORD;
@@ -186,13 +233,16 @@ int main(int argc, char *argv[])
     {
         if (argv[i][0] == '-')
         {
-            if (strcmp(argv[i], "-l") == 0) {
-                if (i == argc - 1) {
+            if (strcmp(argv[i], "-l") == 0)
+            {
+                if (i == argc - 1)
+                {
                     printf("Not enough options for [%s]\n", argv[i]);
                     displayUsageMessage();
                     return 0;
                 }
-                if ((length = atoi(argv[++i])) == 0) {
+                if ((length = atoi(argv[++i])) == 0)
+                {
                     printf("Invalid options for [%s]\n", argv[i - 1]);
                     displayUsageMessage();
                     return 0;
@@ -224,7 +274,7 @@ int main(int argc, char *argv[])
                         fscanf(fPtr, "%c", word);
                     preproccess(word);
                     if (strlen(word))
-                        insert(word);
+                        insert(&root, word, word);
                 }
                 fclose(fPtr);
             }
@@ -236,7 +286,7 @@ int main(int argc, char *argv[])
             }
         }
     }
-    word_t *words = malloc(length * sizeof(word_t)); // Store the words to be displayed.
+    word_t *words = (word_t *)malloc(length * sizeof(word_t)); // Store the words to be displayed.
     for (int i = 0; i < length; i++)
     {
         words[i] = extractMax();
@@ -250,20 +300,20 @@ int main(int argc, char *argv[])
         for (int j = 0; j <= maxWordLength; j++)
             printf(" ");
         printf("\u2502");
-        for (int j = 0; j < (int) ((MAXSCREENWIDTH - 5) * ((float) words[i].frequency / scale)); j++)
+        for (int j = 0; j < (int)((MAXSCREENWIDTH - 5) * ((float)words[i].frequency / scale)); j++)
             printf("\u2591");
         printf("\n");
         printf("%s", words[i].word);
         for (int j = strlen(words[i].word); j <= maxWordLength; j++)
             printf(" ");
         printf("\u2502");
-        for (int j = 0; j < (int) ((MAXSCREENWIDTH - 5) * ((float) words[i].frequency / scale)); j++)
+        for (int j = 0; j < (int)((MAXSCREENWIDTH - 5) * ((float)words[i].frequency / scale)); j++)
             printf("\u2591");
         printf("%.2f%%\n", 100 * (float)words[i].frequency / totalWords);
         for (int j = 0; j <= maxWordLength; j++)
             printf(" ");
         printf("\u2502");
-        for (int j = 0; j < (int) ((MAXSCREENWIDTH - 5) * ((float) words[i].frequency / scale)); j++)
+        for (int j = 0; j < (int)((MAXSCREENWIDTH - 5) * ((float)words[i].frequency / scale)); j++)
             printf("\u2591");
         printf("\n");
         for (int j = 0; j <= maxWordLength; j++)
@@ -276,6 +326,6 @@ int main(int argc, char *argv[])
     for (int i = 0; i < 80; i++)
         printf("\u2500");
     printf("\n");
-    printf("The solution took %lds to execute\n", (clock() - before) / 1000000);
+    printf("The solution took %lds to execute\n", (clock() - before) / 1000);
     return 0;
 }
